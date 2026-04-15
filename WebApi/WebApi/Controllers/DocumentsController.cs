@@ -47,15 +47,20 @@ public class DocumentsController : ControllerBase
             _ => "word"
         };
 
+        // Hujjat kaliti fayl uchun bir xil bo'lishi shart (birga ishlash uchun)
+        // Fayl nomidan yoki faylning o'zgarish vaqtidan kalit yasaladi. 
+        var documentKey = fileName.GetHashCode().ToString("x");
+
         var config = new
         {
             document = new
             {
                 fileType = fileExtension,
-                key = Guid.NewGuid().ToString().Substring(0, 8),
+                key = documentKey,
                 title = fileName,
                 url = $"{_settings.DownloadUrl}/{fileName}"
             },
+
             documentType = documentType,
             editorConfig = new
             {

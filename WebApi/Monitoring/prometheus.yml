@@ -12,6 +12,9 @@ scrape_configs:
     metrics_path: '/metrics'
     static_configs:
       - targets: ['webapi:8080']
+        labels:
+          application: 'webapi'
+
 
   - job_name: 'postgres'
     static_configs:
