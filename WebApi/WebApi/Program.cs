@@ -4,6 +4,7 @@ using WebApi.Middleware;
 using WebApi.Health;
 using WebApi.Data;
 using Microsoft.EntityFrameworkCore;
+using Prometheus;
 using Serilog;
 
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -29,7 +30,7 @@ builder.Services.AddSingleton<IActiveSessionService, ActiveSessionService>();
 // Health Checks
 builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("PostgreSQL")!)
-    .AddRabbitMQ(name: builder.Configuration.GetConnectionString("RabbitMQ")!)
+    //.AddRabbitMQ(builder.Configuration.GetConnectionString("RabbitMQ")!)
     .AddUrlGroup(new Uri("http://onlyoffice_ds/healthcheck"), name: "OnlyOffice Docs")
 
 
@@ -56,19 +57,12 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Avtomatik migratsiya (Database yaratish)
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate(); // Migratsiyalarni qo'llash
-}
-
-
 if (app.Environment.IsDevelopment())
 {
-
     app.MapOpenApi();
 }
+
+app.UseHttpMetrics(); // So'rovlarni sanash uchun eng yuqoriga
 
 app.UseStaticFiles();
 app.UseMiddleware<CorrelationIdMiddleware>();
@@ -77,7 +71,11 @@ app.UseCors("AllowAll");
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapMetrics(); // Metrikalar endpointi
+
 app.MapHealthChecks("/health", new HealthCheckOptions
+
+
 {
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });

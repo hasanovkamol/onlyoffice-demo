@@ -58,6 +58,10 @@ services:
       # ── Nginx sozlamalari ───────────────────────────
       - NGINX_WORKER_PROCESSES=auto
       - NGINX_WORKER_CONNECTIONS=1024
+      - METRICS_ENABLED=true
+      - METRICS_STATSD_HOST=statsd_exporter
+      - METRICS_STATSD_PORT=9125
+
 
       # ── SSL (sertifikat bo'lsa, quyidagi satrlarni yoching) ─
       # - SSL_CERTIFICATE_PATH=/var/www/onlyoffice/Data/certs/tls.crt
@@ -152,20 +156,84 @@ services:
     networks:
       - onlyoffice-net
 
+  # ═══════════════════════════════════════════════════════
+  #  Prometheus — Metrics Collection
+  # ═══════════════════════════════════════════════════════
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    volumes:
+      - ./Monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    networks:
+      - onlyoffice-net
+
+  # ═══════════════════════════════════════════════════════
+  #  PostgreSQL Exporter — Database Metrics
+  # ═══════════════════════════════════════════════════════
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres_exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://onlyoffice:KUCHLI_PAROL_YOZING@db-postgresql:5432/onlyoffice?sslmode=disable
+    ports:
+      - "9187:9187"
+    networks:
+      - onlyoffice-net
+
+  # ═══════════════════════════════════════════════════════
+  #  Grafana — Visualization Dashboard
+  # ═══════════════════════════════════════════════════════
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin_password_123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./Monitoring/grafana-provisioning/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - onlyoffice-net
+
+
+  # ═══════════════════════════════════════════════════════
+  #  StatsD Exporter — Converts OnlyOffice metrics to Prometheus
+  # ═══════════════════════════════════════════════════════
+  statsd_exporter:
+    image: prom/statsd-exporter:latest
+    container_name: statsd_exporter
+    ports:
+      - "9102:9102"
+      - "9125:9125/udp"
+    networks:
+      - onlyoffice-net
+
 # ═══════════════════════════════════════════════════════
 #  Named Volumes
+
 # ═══════════════════════════════════════════════════════
 
 volumes:
   seq_data:
   onlyoffice_data:
-
   onlyoffice_logs:
   onlyoffice_lib:
   onlyoffice_cache:
   onlyoffice_fonts:
   postgresql_data:
   rabbitmq_data:
+  prometheus_data:
+  grafana_data:
 
 # ═══════════════════════════════════════════════════════
 #  Network
