@@ -1,0 +1,154 @@
+services:
+  webapi:
+    image: ${DOCKER_REGISTRY-}webapi
+    build:
+      context: .
+      dockerfile: WebApi/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db-postgres;Database=hrm_db;Username=postgres;Password=my_password
+    ports:
+      - "5000:8080"
+    depends_on:
+      - db-postgresql
+    networks:
+      - onlyoffice-net
+
+  # ═══════════════════════════════════════════════════════
+  #  ONLYOFFICE Docs — Community Edition (Rasmiy image)
+  #  image: onlyoffice/documentserver:latest
+  #  ⚠️  20 ta bir vaqtda ulanish limiti bor (rasmiy build)
+  # ═══════════════════════════════════════════════════════
+  onlyoffice_ds:
+    container_name: onlyoffice_ds
+    image: onlyoffice/documentserver:latest
+    restart: always
+    stdin_open: true
+    stop_grace_period: 60s
+    depends_on:
+      db-postgresql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+    ports:
+      - "8080:80"       # HTTP
+      - "443:443"     # HTTPS (SSL sertifikat bo'lsa)
+
+    environment:
+      # ── Ma'lumotlar bazasi ──────────────────────────
+      - DB_TYPE=postgres
+      - DB_HOST=db-postgresql
+      - DB_PORT=5432
+      - DB_NAME=onlyoffice
+      - DB_USER=onlyoffice
+      - DB_PWD=KUCHLI_PAROL_YOZING         # <── o'zgartiring!
+
+      # ── RabbitMQ (xabar navbati) ────────────────────
+      - AMQP_TYPE=rabbitmq
+      - AMQP_URI=amqp://guest:guest@rabbitmq
+
+      # ── JWT xavfsizlik (tavsiya etiladi) ───────────
+      - JWT_ENABLED=true
+      - JWT_SECRET=MAXFIY_TOKEN_YOZING     # <── o'zgartiring!
+      - JWT_HEADER=Authorization
+      - JWT_IN_BODY=false
+
+      # ── Nginx sozlamalari ───────────────────────────
+      - NGINX_WORKER_PROCESSES=auto
+      - NGINX_WORKER_CONNECTIONS=1024
+
+      # ── SSL (sertifikat bo'lsa, quyidagi satrlarni yoching) ─
+      # - SSL_CERTIFICATE_PATH=/var/www/onlyoffice/Data/certs/tls.crt
+      # - SSL_KEY_PATH=/var/www/onlyoffice/Data/certs/tls.key
+      # - SSL_DHPARAM_PATH=/var/www/onlyoffice/Data/certs/dhparam.pem
+
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+      - onlyoffice_lib:/var/lib/onlyoffice
+      - onlyoffice_cache:/var/lib/onlyoffice/documentserver/App_Data/cache/files
+      - onlyoffice_fonts:/usr/share/fonts
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    networks:
+      - onlyoffice-net
+
+  # ═══════════════════════════════════════════════════════
+  #  PostgreSQL — Ma'lumotlar bazasi
+  # ═══════════════════════════════════════════════════════
+  db-postgresql:
+    container_name: db-postgresql
+    image: postgres:15
+    restart: always
+    expose:
+      - "5432"
+
+    environment:
+      - POSTGRES_DB=onlyoffice
+      - POSTGRES_USER=onlyoffice
+      - POSTGRES_PASSWORD=KUCHLI_PAROL_YOZING   # <── yuqori bilan bir xil!
+
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onlyoffice -d onlyoffice"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - onlyoffice-net
+
+  # ═══════════════════════════════════════════════════════
+  #  RabbitMQ — Xabar navbati (message broker)
+  # ═══════════════════════════════════════════════════════
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    restart: always
+    expose:
+      - "5672"
+    ports:
+      - "15672:15672"   # Boshqaruv paneli: http://localhost:15672
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+    networks:
+      - onlyoffice-net
+
+# ═══════════════════════════════════════════════════════
+#  Named Volumes
+# ═══════════════════════════════════════════════════════
+volumes:
+  onlyoffice_data:
+  onlyoffice_logs:
+  onlyoffice_lib:
+  onlyoffice_cache:
+  onlyoffice_fonts:
+  postgresql_data:
+  rabbitmq_data:
+
+# ═══════════════════════════════════════════════════════
+#  Network
+# ═══════════════════════════════════════════════════════
+networks:
+  onlyoffice-net:
+    driver: bridge
+
