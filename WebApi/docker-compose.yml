@@ -50,7 +50,7 @@ services:
 
       # ── JWT xavfsizlik (tavsiya etiladi) ───────────
       - JWT_ENABLED=true
-      - JWT_SECRET=MAX40025eebTOKEN4FMSMFFSG_ONLYOFFICE_SECRET_KEYS_2024
+      - JWT_SECRET=a4feb64bd8664a479ba7cdb689b86fc7d8cca18ee474afb454aaf6ef9d19755e
 
       - JWT_HEADER=Authorization
       - JWT_IN_BODY=false
@@ -139,12 +139,16 @@ services:
   # ═══════════════════════════════════════════════════════
   seq:
     container_name: seq
-    image: datalust/seq:latest
+    image: datalust/seq
     restart: always
     environment:
       - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=admin_password_123 # Standart admin paroli
+
     ports:
       - "5341:80"        # UI: http://localhost:5341
+    volumes:
+      - seq_data:/data
     networks:
       - onlyoffice-net
 
@@ -153,7 +157,9 @@ services:
 # ═══════════════════════════════════════════════════════
 
 volumes:
+  seq_data:
   onlyoffice_data:
+
   onlyoffice_logs:
   onlyoffice_lib:
   onlyoffice_cache:

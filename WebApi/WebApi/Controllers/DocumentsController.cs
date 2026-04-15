@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using WebApi.Models;
 using WebApi.Services;
+using WebApi.Data;
 using System.Net.Http;
 
 namespace WebApi.Controllers;
@@ -12,23 +13,30 @@ public class DocumentsController : ControllerBase
 {
     private readonly OnlyOfficeSettings _settings;
     private readonly IOnlyOfficeService _onlyOfficeService;
+    private readonly IActiveSessionService _sessionService;
+    private readonly ApplicationDbContext _db; // Database Context
     private readonly IWebHostEnvironment _environment;
     private readonly ILogger<DocumentsController> _logger;
 
     public DocumentsController(
         IOptions<OnlyOfficeSettings> settings,
         IOnlyOfficeService onlyOfficeService,
+        IActiveSessionService sessionService,
+        ApplicationDbContext db,
         IWebHostEnvironment environment,
         ILogger<DocumentsController> logger)
     {
         _settings = settings.Value;
         _onlyOfficeService = onlyOfficeService;
+        _sessionService = sessionService;
+        _db = db;
         _environment = environment;
         _logger = logger;
     }
 
+
     [HttpGet("config/{fileName}")]
-    public IActionResult GetConfig(string fileName)
+    public IActionResult GetConfig(string fileName, [FromQuery] string userId = "789")
     {
         var fileExtension = Path.GetExtension(fileName).ToLower().TrimStart('.');
         var documentType = fileExtension switch
@@ -51,19 +59,19 @@ public class DocumentsController : ControllerBase
             documentType = documentType,
             editorConfig = new
             {
-                callbackUrl = $"{_settings.CallbackUrl}?fileName={fileName}",
+                // callbackUrl ga userId parametrini qo'shamiz
+                callbackUrl = $"{_settings.CallbackUrl}?fileName={fileName}&userId={userId}",
                 lang = "ru",
                 user = new
                 {
-                    id = "1",
-                    name = "Demo User"
+                    id = userId,
+                    name = userId == "1" ? "Admin User" : $"User {userId}"
                 },
                 customization = new {
                     forcesave = true
                 }
             }
         };
-
 
         var token = _onlyOfficeService.CreateToken(config);
 
@@ -96,9 +104,38 @@ public class DocumentsController : ControllerBase
     public async Task<IActionResult> Callback([FromBody] OnlyOfficeCallback body)
     {
         var fileName = Request.Query["fileName"].ToString();
-        if (string.IsNullOrEmpty(fileName)) fileName = "demo.docx";
+        var triggerUserId = Request.Query["userId"].ToString();
 
-        _logger.LogInformation("OnlyOffice Callback received for {FileName}. Status: {Status}", fileName, body.Status);
+        // Sessiyani yangilash
+        if (body.Users != null)
+        {
+            _sessionService.UpdateSession(fileName, body.Users);
+        }
+
+        // Bazaga tarixni saqlash
+        var activity = new DocumentActivity
+        {
+            FileName = fileName,
+            UserId = triggerUserId,
+            Status = body.Status,
+            DownloadUrl = body.Url,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.DocumentActivities.Add(activity);
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("OnlyOffice Callback for {FileName}. Saved to DB. User: {UserId}. Status: {Status}", 
+            fileName, triggerUserId, body.Status);
+
+
+
+        // Hujjat ustida ishlayotgan barcha userlar ro'yxati
+        if (body.Users != null && body.Users.Any())
+        {
+            _logger.LogInformation("Active users on document {FileName}: {Users}", 
+                fileName, string.Join(", ", body.Users));
+        }
+
 
         // JWT Validation
         string? token = body.Token;
@@ -133,8 +170,19 @@ public class DocumentsController : ControllerBase
 
                 try
                 {
+                    // Docker ichki tarmog'i uchun URLni qayta quramiz:
+                    // Hostni 'onlyoffice_ds' ga va portni standart 80 ga majburlaymiz
+                    var uriBuilder = new UriBuilder(body.Url)
+                    {
+                        Host = "onlyoffice_ds",
+                        Port = -1 // Standart port (HTTP bo'lsa 80, HTTPS bo'lsa 443)
+                    };
+                    var downloadUrl = uriBuilder.ToString();
+
+                    _logger.LogInformation("Downloading updated file from: {DownloadUrl} (Original: {OriginalUrl})", downloadUrl, body.Url);
+
                     using var httpClient = new HttpClient();
-                    var response = await httpClient.GetAsync(body.Url);
+                    var response = await httpClient.GetAsync(downloadUrl);
                     if (response.IsSuccessStatusCode)
                     {
                         var fileBytes = await response.Content.ReadAsByteArrayAsync();
