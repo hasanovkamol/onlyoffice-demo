@@ -50,7 +50,8 @@ services:
 
       # ── JWT xavfsizlik (tavsiya etiladi) ───────────
       - JWT_ENABLED=true
-      - JWT_SECRET=MAXFIY_TOKEN_YOZING     # <── o'zgartiring!
+      - JWT_SECRET=MAX40025eebTOKEN4FMSMFFSG_ONLYOFFICE_SECRET_KEYS_2024
+
       - JWT_HEADER=Authorization
       - JWT_IN_BODY=false
 
@@ -133,9 +134,24 @@ services:
     networks:
       - onlyoffice-net
 
+  # ═══════════════════════════════════════════════════════
+  #  Seq — Centralized logging
+  # ═══════════════════════════════════════════════════════
+  seq:
+    container_name: seq
+    image: datalust/seq:latest
+    restart: always
+    environment:
+      - ACCEPT_EULA=Y
+    ports:
+      - "5341:80"        # UI: http://localhost:5341
+    networks:
+      - onlyoffice-net
+
 # ═══════════════════════════════════════════════════════
 #  Named Volumes
 # ═══════════════════════════════════════════════════════
+
 volumes:
   onlyoffice_data:
   onlyoffice_logs:

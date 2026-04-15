@@ -1,5 +1,6 @@
 using WebApi.Models;
 using WebApi.Services;
+using WebApi.Middleware;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,9 +8,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Serilog configuration
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext() // Ensure LogContext is used
     .CreateLogger();
 
 builder.Host.UseSerilog();
+
 
 
 // Configuration
@@ -39,7 +42,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseStaticFiles();
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseCors("AllowAll");
+
 app.UseAuthorization();
 
 app.MapControllers();

@@ -77,18 +77,28 @@ public class DocumentsController : ControllerBase
     [HttpGet("download/{fileName}")]
     public IActionResult Download(string fileName)
     {
+        _logger.LogInformation("Attempting to download file: {FileName}", fileName);
+        
         var filePath = Path.Combine(_environment.WebRootPath, "documents", fileName);
         if (!System.IO.File.Exists(filePath))
+        {
+            _logger.LogWarning("File not found for download: {FileName}. Path: {FilePath}", fileName, filePath);
             return NotFound();
+        }
 
         var fileBytes = System.IO.File.ReadAllBytes(filePath);
+        _logger.LogInformation("File {FileName} ({Size} bytes) successfully served for download", fileName, fileBytes.Length);
+        
         return File(fileBytes, "application/octet-stream", fileName);
     }
 
     [HttpPost("callback")]
     public async Task<IActionResult> Callback([FromBody] OnlyOfficeCallback body)
     {
-        _logger.LogInformation("OnlyOffice Callback received. Status: {Status}", body.Status);
+        var fileName = Request.Query["fileName"].ToString();
+        if (string.IsNullOrEmpty(fileName)) fileName = "demo.docx";
+
+        _logger.LogInformation("OnlyOffice Callback received for {FileName}. Status: {Status}", fileName, body.Status);
 
         // JWT Validation
         string? token = body.Token;
@@ -103,50 +113,56 @@ public class DocumentsController : ControllerBase
 
         if (string.IsNullOrEmpty(token) || !_onlyOfficeService.ValidateToken(token, out _))
         {
-            _logger.LogWarning("Invalid OnlyOffice JWT token in callback");
-            // return Forbid(); // OnlyOffice expects { error: 0 } even if we don't save, but strictly we should check
+            _logger.LogWarning("Invalid or missing OnlyOffice JWT token in callback for {FileName}", fileName);
         }
 
-        if (body.Status == 2 || body.Status == 6)
+        switch (body.Status)
         {
-
-            if (string.IsNullOrEmpty(body.Url))
-            {
-                return BadRequest();
-            }
-
-            try
-            {
-                using var httpClient = new HttpClient();
-                var response = await httpClient.GetAsync(body.Url);
-                if (response.IsSuccessStatusCode)
+            case 1: // Document is being edited
+                _logger.LogInformation("Document {FileName} is being edited by: {Users}", fileName, string.Join(", ", body.Users ?? new List<string>()));
+                break;
+            case 2: // Document is ready for saving
+            case 6: // Document is being edited, but is saved
+                _logger.LogInformation("Document {FileName} is ready to be saved. Download URL: {Url}", fileName, body.Url);
+                
+                if (string.IsNullOrEmpty(body.Url))
                 {
-                    var fileBytes = await response.Content.ReadAsByteArrayAsync();
-                    
-                    // The 'key' in dummy implementation often encodes the filename or we track it elsewere
-                    // For demo, we might need to know which file it was. 
-                    // Let's assume we use the key or we could have passed fileName in callbackUrl query
-                    
-                    // In a real app, you'd map 'key' to a specific database record
-                    // Here for demo, let's look for the file in wwwroot/documents
-                    // (Simplified: we use a fixed filename or pass it via query)
-                    
-                    var fileName = Request.Query["fileName"].ToString();
-                    if (string.IsNullOrEmpty(fileName)) fileName = "demo.docx";
-
-                    var filePath = Path.Combine(_environment.WebRootPath, "documents", fileName);
-                    await System.IO.File.WriteAllBytesAsync(filePath, fileBytes);
-                    
-                    _logger.LogInformation("File {FileName} successfully saved via callback.", fileName);
+                    _logger.LogError("Callback status {Status} received but URL is null for {FileName}", body.Status, fileName);
+                    return BadRequest();
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error saving file from OnlyOffice callback");
-                return BadRequest();
-            }
+
+                try
+                {
+                    using var httpClient = new HttpClient();
+                    var response = await httpClient.GetAsync(body.Url);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var fileBytes = await response.Content.ReadAsByteArrayAsync();
+                        var filePath = Path.Combine(_environment.WebRootPath, "documents", fileName);
+                        
+                        await System.IO.File.WriteAllBytesAsync(filePath, fileBytes);
+                        _logger.LogInformation("File {FileName} successfully updated and saved. Size: {Size} bytes", fileName, fileBytes.Length);
+                    }
+                    else
+                    {
+                        _logger.LogError("Failed to download updated file from OnlyOffice. Status: {StatusCode}", response.StatusCode);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Exception occurred while saving file {FileName} from OnlyOffice callback", fileName);
+                    return BadRequest();
+                }
+                break;
+            case 4: // Document is closed with no changes
+                _logger.LogInformation("Document {FileName} was closed without changes", fileName);
+                break;
+            default:
+                _logger.LogDebug("Received unhandled OnlyOffice callback status {Status} for {FileName}", body.Status, fileName);
+                break;
         }
 
         return Ok(new { error = 0 });
     }
 }
+
