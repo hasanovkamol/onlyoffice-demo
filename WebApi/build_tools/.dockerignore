@@ -1,0 +1,11 @@
+# Docker build uchun kerak bo'lmagan og'ir papkalarni o'tkazib yuboramiz
+.git
+*/.git
+*/*/.git
+core/build
+core/Common/3dParty
+obj
+scratch
+*.log
+*.tmp
+node_modules
