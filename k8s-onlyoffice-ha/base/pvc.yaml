@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: onlyoffice-data-pvc
+spec:
+  accessModes:
+    - ReadWriteMany  # Shared Storage bo'lishi shart (NFS/Ceph/AzureFile)
+  resources:
+    requests:
+      storage: 50Gi
+      # storageClassName: nfs-client # Storage Class ko'rsatilishi kerak

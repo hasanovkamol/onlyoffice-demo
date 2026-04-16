@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onlyoffice-fileconverter
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: onlyoffice
+      component: fileconverter
+  template:
+    metadata:
+      labels:
+        app: onlyoffice
+        component: fileconverter
+    spec:
+      containers:
+      - name: fileconverter
+        image: your-registry-name/custom-onlyoffice:1.0.0
+        # Faqat konvertatsiya bilan shug'ullanish uchun muhit sozlamalari
+        env:
+        - name: DB_TYPE
+          value: "postgres"
+        - name: DB_HOST
+          value: "postgres-cluster-svc"
+        - name: AMQP_URI
+          value: "amqp://guest:guest@rabbitmq-cluster-svc"
+        - name: REDIS_SERVER_HOST
+          value: "redis-cluster-svc"
+        
+        # Converter uchun salomatlik tekshiruvi (ichki port orqali)
+        livenessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        
+        volumeMounts:
+        - name: storage
+          mountPath: /var/www/onlyoffice/Data
+      
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: onlyoffice-data-pvc

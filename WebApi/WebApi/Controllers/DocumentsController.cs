@@ -56,7 +56,7 @@ public class DocumentsController(
             {
                 // callbackUrl ga userId parametrini qo'shamiz
                 callbackUrl = $"{_settings.CallbackUrl}?fileName={fileName}&userId={userId}",
-                lang = "ru",
+                lang = "uz",
                 user = new
                 {
                     id = userId,

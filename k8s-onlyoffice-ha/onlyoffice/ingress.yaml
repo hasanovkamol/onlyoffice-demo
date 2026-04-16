@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: onlyoffice-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # Sticky Sessions (Tahrirlovchi sessiyasi uzilib qolmasligi uchun)
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
+    
+    # WebSocket (WSS) va katta hajmdagi fayllar yuklash sozlamalari
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/websocket-services: "onlyoffice-docservice-svc"
+spec:
+  rules:
+  - host: onlyoffice.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: onlyoffice-docservice-svc
+            port:
+              number: 80

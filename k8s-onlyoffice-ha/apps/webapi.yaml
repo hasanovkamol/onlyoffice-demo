@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docdemo-webapi
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: docdemo-webapi
+  template:
+    metadata:
+      labels:
+        app: docdemo-webapi
+    spec:
+      containers:
+      - name: webapi
+        image: ${DOCKER_REGISTRY-}webapi # O'zingizning build image nomingizni yozing
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ConnectionStrings__DefaultConnection
+          value: "Host=postgres-cluster-svc;Database=onlyoffice;Username=onlyoffice;Password=KUCHLI_PAROL_YOZING"
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapi-svc
+spec:
+  selector:
+    app: docdemo-webapi
+  ports:
+  - port: 80
+    targetPort: 8080

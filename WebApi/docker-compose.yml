@@ -34,7 +34,7 @@ services:
         condition: service_healthy
 
     ports:
-      - "8080:80"       # HTTP
+      - "9090:80"       # HTTP (8080 port band bo'lsa, 9090 yoki boshqasiga o'zgartiring)
       - "443:443"     # HTTPS (SSL sertifikat bo'lsa)
 
     environment:

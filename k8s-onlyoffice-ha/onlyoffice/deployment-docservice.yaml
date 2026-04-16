@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onlyoffice-docservice
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: onlyoffice
+      component: docservice
+  template:
+    metadata:
+      labels:
+        app: onlyoffice
+        component: docservice
+    spec:
+      containers:
+      - name: docservice
+        image: your-registry-name/custom-onlyoffice:1.0.0 # <--- Sizning custom image'ingiz
+        imagePullPolicy: Always
+        env:
+        # Tashqi resurslar bilan bog'lanish
+        - name: DB_TYPE
+          value: "postgres"
+        - name: DB_HOST
+          value: "postgres-cluster-svc"
+        - name: DB_NAME
+          value: "onlyoffice"
+        - name: AMQP_TYPE
+          value: "rabbitmq"
+        - name: AMQP_URI
+          value: "amqp://guest:guest@rabbitmq-cluster-svc"
+        - name: REDIS_SERVER_HOST
+          value: "redis-cluster-svc"
+        
+        ports:
+        - containerPort: 80
+        
+        # Health Checks
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        
+        volumeMounts:
+        - name: storage
+          mountPath: /var/www/onlyoffice/Data
+      
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: onlyoffice-data-pvc
