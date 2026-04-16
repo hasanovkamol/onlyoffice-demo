@@ -1,0 +1,20 @@
+name: Build OnlyOffice Custom
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build OnlyOffice Image
+        run: |
+          cd WebApi/build_tools
+          docker compose build onlyoffice-builder
+          docker compose up onlyoffice-builder

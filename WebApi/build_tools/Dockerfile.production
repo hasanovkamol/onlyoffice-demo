@@ -1,0 +1,49 @@
+# 1-BOSQICH: Builder (Hamma narsani build qilish)
+FROM ubuntu:24.04 AS builder
+
+ENV TZ=Etc/UTC
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Tizim paketlarini o'rnatish
+RUN apt-get -y update && \
+    apt-get -y install sudo git git-lfs curl wget p7zip-full python3 build-essential && \
+    apt-get clean
+
+# Build tools scriptlarini qo'shish (hamma narsa nusxalangan bo'lishi kerak)
+ADD . /build_tools
+WORKDIR /build_tools
+
+# OnlyOffice build vositalarini sozlash
+RUN cd tools/linux && \
+    ./python.sh && \
+    ./python3/bin/python3 ./qt_binary_fetch.py amd64 && \
+    ./python3/bin/python3 ./deps.py && \
+    ./cmake.sh
+
+# Build jarayoni (Muhim: barcha kerakli modullarni ko'rsatamiz)
+# --module "server web-apps sdkjs" barcha asosiy qismlarni o'z ichiga oladi
+RUN ./tools/linux/python3/bin/python3 ./configure.py \
+    --module "server web-apps sdkjs" \
+    --update 0 \
+    --clean 0 \
+    --sysroot 1 && \
+    ./tools/linux/python3/bin/python3 ./make.py
+
+# 2-BOSQICH: Runtime (Tayyor image yaratish)
+FROM onlyoffice/documentserver:latest
+
+# O'zimiz build qilgan yangi fayllarni (server, web-apps va sdkjs) rasmiy image ichiga ko'chiramiz
+# Bu sizning o'zbekcha tarjimalaringizni rasmiy image ichidagi eski fayllar ustidan yozadi
+COPY --from=builder /build_tools/out/linux_64/onlyoffice/documentserver/server/ /var/www/onlyoffice/documentserver/server/
+COPY --from=builder /build_tools/out/linux_64/onlyoffice/documentserver/web-apps/ /var/www/onlyoffice/documentserver/web-apps/
+COPY --from=builder /build_tools/out/linux_64/onlyoffice/documentserver/sdkjs/ /var/www/onlyoffice/documentserver/sdkjs/
+
+# Huquqlarni to'g'irlash (OnlyOffice ishlashi uchun muhim)
+RUN chown -R ds:ds /var/www/onlyoffice/documentserver/server/ && \
+    chown -R ds:ds /var/www/onlyoffice/documentserver/web-apps/ && \
+    chown -R ds:ds /var/www/onlyoffice/documentserver/sdkjs/
+
+EXPOSE 80 443
+
+# OnlyOffice xizmatlarini ishga tushirish
+ENTRYPOINT ["/app/ds/run-systemd.sh"]

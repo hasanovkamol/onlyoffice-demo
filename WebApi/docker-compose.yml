@@ -21,7 +21,9 @@ services:
   # ═══════════════════════════════════════════════════════
   onlyoffice_ds:
     container_name: onlyoffice_ds
-    image: onlyoffice/documentserver:latest
+    build:
+      context: ./build_tools
+      dockerfile: Dockerfile.production
     restart: always
     stdin_open: true
     stop_grace_period: 60s

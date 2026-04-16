@@ -22,7 +22,7 @@ public class ActiveSessionService : IActiveSessionService
         }
         else
         {
-            _activeUsers[fileName] = new HashSet<string>(users);
+            _activeUsers[fileName] = [.. users];
         }
     }
 

@@ -3,40 +3,28 @@ using Microsoft.Extensions.Options;
 using WebApi.Models;
 using WebApi.Services;
 using WebApi.Data;
-using System.Net.Http;
 
 namespace WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class DocumentsController : ControllerBase
+public class DocumentsController(
+    IOptions<OnlyOfficeSettings> settings,
+    IOnlyOfficeService onlyOfficeService,
+    IActiveSessionService sessionService,
+    ApplicationDbContext db,
+    IWebHostEnvironment environment,
+    ILogger<DocumentsController> logger) : ControllerBase
 {
-    private readonly OnlyOfficeSettings _settings;
-    private readonly IOnlyOfficeService _onlyOfficeService;
-    private readonly IActiveSessionService _sessionService;
-    private readonly ApplicationDbContext _db; // Database Context
-    private readonly IWebHostEnvironment _environment;
-    private readonly ILogger<DocumentsController> _logger;
-
-    public DocumentsController(
-        IOptions<OnlyOfficeSettings> settings,
-        IOnlyOfficeService onlyOfficeService,
-        IActiveSessionService sessionService,
-        ApplicationDbContext db,
-        IWebHostEnvironment environment,
-        ILogger<DocumentsController> logger)
-    {
-        _settings = settings.Value;
-        _onlyOfficeService = onlyOfficeService;
-        _sessionService = sessionService;
-        _db = db;
-        _environment = environment;
-        _logger = logger;
-    }
-
+    private readonly OnlyOfficeSettings _settings = settings.Value;
+    private readonly IOnlyOfficeService _onlyOfficeService = onlyOfficeService;
+    private readonly IActiveSessionService _sessionService = sessionService;
+    private readonly ApplicationDbContext _db = db; // Database Context
+    private readonly IWebHostEnvironment _environment = environment;
+    private readonly ILogger<DocumentsController> _logger = logger;
 
     [HttpGet("config/{fileName}")]
-    public IActionResult GetConfig(string fileName, [FromQuery] string userId = "789")
+    public IActionResult GetConfig(string fileName)
     {
         var fileExtension = Path.GetExtension(fileName).ToLower().TrimStart('.');
         var documentType = fileExtension switch
@@ -46,6 +34,8 @@ public class DocumentsController : ControllerBase
             "pptx" or "ppt" or "odp" => "slide",
             _ => "word"
         };
+
+        string userId=Guid.NewGuid().ToString();
 
         // Hujjat kaliti fayl uchun bir xil bo'lishi shart (birga ishlash uchun)
         // Fayl nomidan yoki faylning o'zgarish vaqtidan kalit yasaladi. 

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  onlyoffice-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: onlyoffice_builder
+    volumes:
+      # Local kodlarni container ichiga bog'lash (Uzbek tarjimalar bilan birga)
+      - ./server:/build_tools/server
+      - ./web-apps:/build_tools/web-apps
+      - ./sdkjs:/build_tools/sdkjs
+      # Build natijalarini (binaries) olish uchun
+      - ./out:/build_tools/out
+    environment:
+      - BRANCH=master
+    # Build jarayoni uchun ko'p resurs kerak
+    deploy:
+      resources:
+        limits:
+          memory: 4G
